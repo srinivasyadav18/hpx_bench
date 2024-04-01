@@ -1,8 +1,15 @@
 
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import sys
 # seq_time = None
+
+args = sys.argv
+if len(args) != 2:
+  print("ERROR : pass MACHINE name")
+  sys.exit()
+
+MACHINE = args[1]
 
 def extract_file(fpath):
   f = open(fpath)
@@ -43,20 +50,37 @@ for f in files:
 
 print(all_dfs)
 
+plt.figure(figsize=(8, 6))
+
+markers = {}
+markers['hpx'] = 'o'
+markers['hpx_simd'] = '*'
+markers['hpx_static_cs'] = 's'
+markers['omp'] = 'o'
+markers['omp_simd'] = '*'
+
+ls = {}
+ls['hpx'] = 'dotted'
+ls['hpx_simd'] = 'solid'
+ls['hpx_static_cs'] = 'dashed'
+ls['omp'] = 'dotted'
+ls['omp_simd'] = 'solid'
+
 for df_name, df in all_dfs.items():
-    if df_name == 'seq' or df_name == 'simd':
+    if df_name == 'seq' or df_name == 'simd' or df_name == 'hpx_static_cs':
         continue
-    plt.plot(df["threads"], df["speed_up"], label=df_name, marker='o')
+    plt.plot(df["threads"], df["speed_up"], label=df_name, marker=markers[df_name], linestyle=ls[df_name])
 
 plt.xlabel("Threads")
 plt.ylabel("Speedup")
-plt.title("Speedup vs Threads for Different Datasets")
+plt.title("MiniBUDE benchmark\nSpeedup against Sequenced execution\nAMD_7763 2x 64 Cores")
 plt.grid(True)
 print(df["threads"])
 plt.xticks(df["threads"])
 plt.yticks(df["threads"])
 plt.legend()
-plt.savefig("time_vs_threads.png")
+plt.tight_layout()
+plt.savefig(f"plot.png", dpi=300)
 # plt.savefig
 
 
