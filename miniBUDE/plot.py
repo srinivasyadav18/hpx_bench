@@ -30,10 +30,9 @@ def extract_file(fpath):
     # print(backend, threads, time)
     data_dict[float(threads)] = float(time)
     i+= 3
+  return data_dict
 
-  # print(data_dict)
-  # if seq_time is None:
-  seq_time = data_dict[1]
+def extract_df(data_dict, seq_time):
 
   df = pd.DataFrame(list(zip(data_dict.keys(), data_dict.values())), columns=["threads", "time"])
   df["speed_up"] = seq_time/df["time"]
@@ -41,12 +40,13 @@ def extract_file(fpath):
   print(df)
   return df
 
-
-files = ['seq', 'simd', 'hpx', 'hpx_simd', 'hpx_static_cs', 'omp', 'omp_simd']
+files = ['hpx', 'hpx_simd', 'hpx_fj', 'omp', 'omp_simd']
+seq_time = extract_file('seq_clean.out')[1]
+print('Seq timeeee ', seq_time)
 all_dfs = {}
 
 for f in files:
-  all_dfs[f] = extract_file(f'{f}_clean.out')
+  all_dfs[f] = extract_df(extract_file(f'{f}_clean.out'), seq_time)
 
 print(all_dfs)
 
@@ -56,6 +56,7 @@ markers = {}
 markers['hpx'] = 'o'
 markers['hpx_simd'] = '*'
 markers['hpx_static_cs'] = 's'
+markers['hpx_fj'] = 's'
 markers['omp'] = 'o'
 markers['omp_simd'] = '*'
 
@@ -63,6 +64,7 @@ ls = {}
 ls['hpx'] = 'dotted'
 ls['hpx_simd'] = 'solid'
 ls['hpx_static_cs'] = 'dashed'
+ls['hpx_fj'] = 'dashed'
 ls['omp'] = 'dotted'
 ls['omp_simd'] = 'solid'
 
@@ -73,14 +75,14 @@ for df_name, df in all_dfs.items():
 
 plt.xlabel("Threads")
 plt.ylabel("Speedup")
-plt.title("MiniBUDE benchmark\nSpeedup against Sequenced execution\nAMD_7763 2x 64 Cores")
+plt.title(f"MiniBUDE benchmark\nSpeedup against Sequenced execution\n{MACHINE}")
 plt.grid(True)
 print(df["threads"])
 plt.xticks(df["threads"])
 plt.yticks(df["threads"])
 plt.legend()
 plt.tight_layout()
-plt.savefig(f"plot.png", dpi=300)
+plt.savefig(f"plot_{MACHINE}.png", dpi=300)
 # plt.savefig
 
 
