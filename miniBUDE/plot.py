@@ -40,7 +40,7 @@ def extract_df(data_dict, seq_time):
   print(df)
   return df
 
-files = ['hpx', 'hpx_simd', 'hpx_fj', 'omp', 'omp_simd']
+files = ['hpx', 'hpx_simd', 'hpx_fj', 'hpx_fj_simd', 'omp', 'omp_simd']
 seq_time = extract_file('seq_clean.out')[1]
 print('Seq timeeee ', seq_time)
 all_dfs = {}
@@ -57,6 +57,7 @@ markers['hpx'] = 'o'
 markers['hpx_simd'] = '*'
 markers['hpx_static_cs'] = 's'
 markers['hpx_fj'] = 's'
+markers['hpx_fj_simd'] = 's'
 markers['omp'] = 'o'
 markers['omp_simd'] = '*'
 
@@ -65,6 +66,7 @@ ls['hpx'] = 'dotted'
 ls['hpx_simd'] = 'solid'
 ls['hpx_static_cs'] = 'dashed'
 ls['hpx_fj'] = 'dashed'
+ls['hpx_fj_simd'] = 'dashed'
 ls['omp'] = 'dotted'
 ls['omp_simd'] = 'solid'
 

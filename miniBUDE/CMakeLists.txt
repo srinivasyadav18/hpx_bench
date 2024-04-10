@@ -34,6 +34,10 @@ add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
 set(target "hpx_fj")
 add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
 
+set(target "hpx_fj_simd")
+add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
+
+
 set(target "hpx_static_cs")
 add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
 

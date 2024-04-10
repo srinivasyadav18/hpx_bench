@@ -6,7 +6,8 @@ rm -rf *.out
 
 # threads=(8 16 32 48 64 128)
 # threads=(8 16 32 40)
-threads=(1 2 4 8 16 32 64 128)
+threads=(8 16 32 64 128)
+# threads=(1 2 4 8 16 32 64)
 
 iters=5
 
@@ -17,9 +18,10 @@ for thread in "${threads[@]}"; do
     ./hpx --hpx:threads=$thread -i $iters 2>&1 | tee -a hpx.out
     ./hpx_simd --hpx:threads=$thread -i $iters 2>&1 | tee -a hpx_simd.out
     ./hpx_fj --hpx:threads=$thread -i $iters 2>&1 | tee -a hpx_fj.out
+    ./hpx_fj_simd --hpx:threads=$thread -i $iters 2>&1 | tee -a hpx_fj_simd.out
 done
 
-backends=("seq" "simd" "hpx" "hpx_simd" "hpx_fj" "omp" "omp_simd")
+backends=("seq" "simd" "hpx" "hpx_simd" "hpx_fj" "hpx_fj_simd" "omp" "omp_simd")
 
 for b in "${backends[@]}"; do
     grep -E 'thread|Average|backend' $b".out" | tee $b"_clean.out"
