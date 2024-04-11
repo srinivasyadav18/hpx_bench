@@ -71,11 +71,22 @@ void fasten_main(
 		float etot[WG_SIZE] = {0};
 		float transform[3][4][WG_SIZE];
 
-		// Compute transformation matrix to private memory
 		using simd_t = std::experimental::native_simd<float>;
+		using simd_mask_t = simd_t::mask_type;
 		using std::experimental::sin;
 		using std::experimental::cos;
 
+		auto select_simd = [](simd_mask_t msk, simd_t true_vec, simd_t false_vec){
+			simd_t ret = false_vec;
+			where(msk, ret) = true_vec;
+			return ret; 
+		};
+
+		auto select_bool = [](bool msk, float true_f, float false_f){
+			float ret = false_f;
+			if (msk) ret = true_f;
+			return ret;
+		};
 		for (size_t i = 0; i < WG_SIZE; i += simd_t::size()) {
 
 			size_t ix = group * WG_SIZE + i;
@@ -103,7 +114,6 @@ void fasten_main(
 			// etot[i] = ZERO;
 		}
 
-
 		// Loop over ligand atoms
 		size_t il = 0;
 		do {
@@ -114,20 +124,36 @@ void fasten_main(
 			const bool lhphb_gtz = l_params.hphb > ZERO;
 
 			float lpos_x[WG_SIZE], lpos_y[WG_SIZE], lpos_z[WG_SIZE];
-			for (size_t i = 0; i < WG_SIZE; i++) {
+			for (size_t i = 0; i < WG_SIZE; i += simd_t::size()) {
+				simd_t transform00(&transform[0][0][i], std::experimental::vector_aligned);
+				simd_t transform01(&transform[0][1][i], std::experimental::vector_aligned);
+				simd_t transform02(&transform[0][2][i], std::experimental::vector_aligned);
+				simd_t transform03(&transform[0][3][i], std::experimental::vector_aligned);
+				simd_t transform10(&transform[1][0][i], std::experimental::vector_aligned);
+				simd_t transform11(&transform[1][1][i], std::experimental::vector_aligned);
+				simd_t transform12(&transform[1][2][i], std::experimental::vector_aligned);
+				simd_t transform13(&transform[1][3][i], std::experimental::vector_aligned);
+				simd_t transform20(&transform[2][0][i], std::experimental::vector_aligned);
+				simd_t transform21(&transform[2][1][i], std::experimental::vector_aligned);
+				simd_t transform22(&transform[2][2][i], std::experimental::vector_aligned);
+				simd_t transform23(&transform[2][3][i], std::experimental::vector_aligned);
 				// Transform ligand atom
-				lpos_x[i] = transform[0][3][i]
-						+ l_atom.x * transform[0][0][i]
-						+ l_atom.y * transform[0][1][i]
-						+ l_atom.z * transform[0][2][i];
-				lpos_y[i] = transform[1][3][i]
-						+ l_atom.x * transform[1][0][i]
-						+ l_atom.y * transform[1][1][i]
-						+ l_atom.z * transform[1][2][i];
-				lpos_z[i] = transform[2][3][i]
-						+ l_atom.x * transform[2][0][i]
-						+ l_atom.y * transform[2][1][i]
-						+ l_atom.z * transform[2][2][i];
+				simd_t lpos_xi = transform03
+						+ l_atom.x * transform00
+						+ l_atom.y * transform01
+						+ l_atom.z * transform02;
+				simd_t lpos_yi = transform13
+						+ l_atom.x * transform10
+						+ l_atom.y * transform11
+						+ l_atom.z * transform12;
+				simd_t lpos_zi = transform23
+						+ l_atom.x * transform20
+						+ l_atom.y * transform21
+						+ l_atom.z * transform22;
+
+				lpos_xi.copy_to(&lpos_x[i], std::experimental::vector_aligned);
+				lpos_yi.copy_to(&lpos_y[i], std::experimental::vector_aligned);
+				lpos_zi.copy_to(&lpos_z[i], std::experimental::vector_aligned);
 			}
 
 			// Loop over protein atoms
@@ -155,32 +181,37 @@ void fasten_main(
 				const float chrg_init = l_params.elsc * p_params.elsc;
 				const float dslv_init = p_hphb + l_hphb;
 
-				for (size_t i = 0; i < WG_SIZE; i++) {
+				for (size_t i = 0; i < WG_SIZE; i += simd_t::size()) {
 					// Calculate distance between atoms
-					const float x = lpos_x[i] - p_atom.x;
-					const float y = lpos_y[i] - p_atom.y;
-					const float z = lpos_z[i] - p_atom.z;
+					const simd_t x = simd_t(&lpos_x[i], std::experimental::vector_aligned) - p_atom.x;
+					const simd_t y = simd_t(&lpos_y[i], std::experimental::vector_aligned) - p_atom.y;
+					const simd_t z = simd_t(&lpos_z[i], std::experimental::vector_aligned) - p_atom.z;
+					using std::experimental::sqrt;
 
-					const float distij = sqrtf(x * x + y * y + z * z);
+					const simd_t distij = sqrt(x * x + y * y + z * z);
 
 					// Calculate the sum of the sphere radii
-					const float distbb = distij - radij;
-					const bool zone1 = (distbb < ZERO);
+					const simd_t distbb = distij - radij;
+					const simd_mask_t zone1 = (distbb < ZERO);
 
+					simd_t etot_i(&etot[i], std::experimental::vector_aligned);
 					// Calculate steric energy
-					etot[i] += (ONE - (distij * r_radij)) * (zone1 ? 2 * HARDNESS : ZERO);
+					// etot[i] += (ONE - (distij * r_radij)) * (zone1 ? 2 * HARDNESS : ZERO);
+					etot_i += (ONE - (distij * r_radij)) * select_simd(zone1, 2 * HARDNESS, ZERO);
 
 					// Calculate formal and dipole charge interactions
-					float chrg_e = chrg_init * ((zone1 ? 1 : (ONE - distbb * elcdst1)) * (distbb < elcdst ? 1 : ZERO));
-					const float neg_chrg_e = -fabsf(chrg_e);
+					// float chrg_e = chrg_init * ((zone1 ? 1 : (ONE - distbb * elcdst1)) * (distbb < elcdst ? 1 : ZERO));
+					simd_t chrg_e = chrg_init * (select_simd(zone1, 1, (ONE - distbb * elcdst1)) * select_simd(distbb < elcdst, 1, ZERO));
+					const simd_t neg_chrg_e = -std::experimental::abs(chrg_e);
 					chrg_e = type_E ? neg_chrg_e : chrg_e;
-					etot[i] += chrg_e * CNSTNT;
+					etot_i += chrg_e * CNSTNT;
 
 					// Calculate the two cases for Nonpolar-Polar repulsive interactions
-					const float coeff = (ONE - (distbb * r_distdslv));
-					float dslv_e = dslv_init * ((distbb < distdslv && phphb_nz) ? 1 : ZERO);
-					dslv_e *= (zone1 ? 1 : coeff);
-					etot[i] += dslv_e;
+					const simd_t coeff = (ONE - (distbb * r_distdslv));
+					simd_t dslv_e = dslv_init * (select_simd((distbb < distdslv && simd_mask_t(phphb_nz)), 1, ZERO));
+					dslv_e *= select_simd(zone1, 1, coeff);
+					etot_i += dslv_e;
+					etot_i.copy_to(&etot[i], std::experimental::vector_aligned);
 				}
 			} while (++ip < natpro); // loop over protein atoms
 		} while (++il < natlig); // loop over ligand atoms
@@ -398,7 +429,7 @@ std::vector<float> runKernel(Params params) {
 	};
 
 	// warm up
-	runKernel();
+	// runKernel();
 
 	auto start = std::chrono::high_resolution_clock::now();
 	for (size_t i = 0; i < params.iterations; ++i) {
@@ -467,4 +498,5 @@ int main(int argc, char *argv[]) {
 
     delete fj;
 	fclose(output);
+	return 0;
 }

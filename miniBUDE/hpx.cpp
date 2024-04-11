@@ -392,7 +392,7 @@ std::vector<float> runKernel(Params params) {
 	};
 
 	// warm up
-	runKernel();
+	// runKernel();
 
 	auto start = std::chrono::high_resolution_clock::now();
 	for (size_t i = 0; i < params.iterations; ++i) {
@@ -460,4 +460,5 @@ int main(int argc, char *argv[]) {
 	refEnergies.close();
 
 	fclose(output);
+	return 0;
 }
