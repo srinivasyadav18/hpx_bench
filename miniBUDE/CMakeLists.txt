@@ -27,10 +27,6 @@ target_link_options(${target} PUBLIC "-fopenmp")
 set(target "hpx")
 add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
 
-set(target "test")
-add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
-
-
 set(target "hpx_fj")
 add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
 

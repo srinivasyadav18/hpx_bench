@@ -7,8 +7,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 def generate_default_threads():
-    i = 1
-    default_threads = "1,"
+    i = 2
+    default_threads = "2,"
     N = math.pow(2, i)
     while N < os.cpu_count():
         default_threads += f'{int(N)},'
@@ -111,6 +111,7 @@ config['output'] = parse_output_dir(os.path.join(os.path.abspath(options.output)
 config['data_dir'] = options.data_dir
 config['deck'] = parse_deck(os.path.abspath(options.data_dir), options.deck)
 config['variant'] = options.variant
+config['n'] = 1048576 if options.deck == 'bm2_long' else 65536
 mode = options.mode
 
 print('####\n')
@@ -121,7 +122,7 @@ print()
 
 def run_bench(config):
     
-    extra_args=f' -i {config["iters"]} --deck {config["deck"]}'
+    extra_args=f' -i {config["iters"]} --deck {config["deck"]} -n {config["n"]} '
     all_dfs = {}
     seq_time = None
     for bench_name, bench_path in config['benchmarks'].items():
@@ -130,7 +131,7 @@ def run_bench(config):
             print('-----------------------------------------')
             cmd = ''
             if bench_name == 'seq':
-                cmd = f'{bench_path} -i 1 --deck {config["deck"]}'
+                cmd = f'{bench_path} -i 1 --deck {config["deck"]} -n {config["n"]}'
             elif bench_name == 'hpxmp' or bench_name[:3] == 'omp':
                 cmd = f'OMP_NUM_THREADS={thread} {bench_path} {extra_args}'
             elif bench_name[:3] == 'hpx':
@@ -174,6 +175,7 @@ def run_and_write_bench(config):
     if seq_time is not None:
         seq_file = open(os.path.join(config['output'], 'seq.csv'), 'w')
         seq_file.write(str(seq_time))
+        seq_file.close()
     # return seq_time, all_dfs
 
 def read_bench(config):
@@ -217,7 +219,7 @@ def plot_bench(config, seq_time, all_dfs):
     # plt.yticks(config["threads"])
     plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(config['output'], 'plot.png'), dpi=300)
+    plt.savefig(os.path.join(config['output'], f'plot_{config["variant"]}.png'), dpi=300)
 
 # seq_time, all_dfs = read_bench(config)
 # print(seq_time, all_dfs)
