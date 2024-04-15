@@ -16,7 +16,6 @@
 #include <hpx/hpx_main.hpp>
 #include <hpx/parallel/algorithms/for_loop.hpp>
 #include <experimental/simd>
-#include <hpx/include/datapar.hpp>
 
 
 #include "bude.h"
@@ -53,19 +52,6 @@ struct __attribute__((__packed__)) FFParams {
 
 constexpr const auto FloatMax = std::numeric_limits<float>::max();
 
-template <typename T, typename Enable=void>
-struct get_mask_type
-{
-    using type = bool;
-};
-
-template <typename T>
-struct get_mask_type<T, typename std::enable_if_t<std::experimental::is_simd_v<T>>>
-{
-    using type = std::experimental::simd_mask<typename T::value_type,
-                                            typename T::abi_type>;
-};
-
 void fasten_main(
 		size_t ntypes, size_t nposes,
 		size_t natlig, size_t natpro,
@@ -101,43 +87,32 @@ void fasten_main(
 			if (msk) ret = true_f;
 			return ret;
 		};
-
-		auto select = [&](auto msk, auto true_f, auto false_f){
-			if constexpr (std::is_same_v<decltype(msk), simd_mask_t>){
-				return select_simd(msk, true_f, false_f);
-			} else {
-				return select_bool(msk, true_f, false_f);
-			}
-		};
-
-		// Compute transformation matrix to private memory
-		for (size_t i = 0; i < WG_SIZE; i++) {
+		for (size_t i = 0; i < WG_SIZE; i += simd_t::size()) {
 
 			size_t ix = group * WG_SIZE + i;
 
-			const float sx = sinf(transforms_0[ix]);
-			const float cx = cosf(transforms_0[ix]);
-			const float sy = sinf(transforms_1[ix]);
-			const float cy = cosf(transforms_1[ix]);
-			const float sz = sinf(transforms_2[ix]);
-			const float cz = cosf(transforms_2[ix]);
+			const simd_t sx = sin(simd_t(&transforms_0[ix], std::experimental::vector_aligned));
+			const simd_t cx = cos(simd_t(&transforms_0[ix], std::experimental::vector_aligned));
+			const simd_t sy = sin(simd_t(&transforms_1[ix], std::experimental::vector_aligned));
+			const simd_t cy = cos(simd_t(&transforms_1[ix], std::experimental::vector_aligned));
+			const simd_t sz = sin(simd_t(&transforms_2[ix], std::experimental::vector_aligned));
+			const simd_t cz = cos(simd_t(&transforms_2[ix], std::experimental::vector_aligned));
 
-			transform[0][0][i] = cy * cz;
-			transform[0][1][i] = sx * sy * cz - cx * sz;
-			transform[0][2][i] = cx * sy * cz + sx * sz;
-			transform[0][3][i] = transforms_3[ix];
-			transform[1][0][i] = cy * sz;
-			transform[1][1][i] = sx * sy * sz + cx * cz;
-			transform[1][2][i] = cx * sy * sz - sx * cz;
-			transform[1][3][i] = transforms_4[ix];
-			transform[2][0][i] = -sy;
-			transform[2][1][i] = sx * cy;
-			transform[2][2][i] = cx * cy;
-			transform[2][3][i] = transforms_5[ix];
+			(cy * cz).copy_to(&transform[0][0][i], std::experimental::vector_aligned);
+			(sx * sy * cz - cx * sz).copy_to(&transform[0][1][i], std::experimental::vector_aligned);
+			(cx * sy * cz + sx * sz).copy_to(&transform[0][2][i], std::experimental::vector_aligned);;
+			(simd_t(&transforms_3[ix], std::experimental::vector_aligned)).copy_to(&transform[0][3][i], std::experimental::vector_aligned);
+			(cy * sz).copy_to(&transform[1][0][i], std::experimental::vector_aligned);
+			(sx * sy * sz + cx * cz).copy_to(&transform[1][1][i], std::experimental::vector_aligned);
+			(cx * sy * sz - sx * cz).copy_to(&transform[1][2][i], std::experimental::vector_aligned);
+			(simd_t(&transforms_4[ix], std::experimental::vector_aligned)).copy_to(&transform[1][3][i], std::experimental::vector_aligned);
+			(-sy).copy_to(&transform[2][0][i], std::experimental::vector_aligned);
+			(sx * cy).copy_to(&transform[2][1][i], std::experimental::vector_aligned);
+			(cx * cy).copy_to(&transform[2][2][i], std::experimental::vector_aligned);
+			(simd_t(&transforms_5[ix], std::experimental::vector_aligned)).copy_to(&transform[2][3][i], std::experimental::vector_aligned);
 
-			etot[i] = ZERO;
+			// etot[i] = ZERO;
 		}
-
 
 		// Loop over ligand atoms
 		size_t il = 0;
@@ -149,20 +124,36 @@ void fasten_main(
 			const bool lhphb_gtz = l_params.hphb > ZERO;
 
 			float lpos_x[WG_SIZE], lpos_y[WG_SIZE], lpos_z[WG_SIZE];
-			for (size_t i = 0; i < WG_SIZE; i++) {
+			for (size_t i = 0; i < WG_SIZE; i += simd_t::size()) {
+				simd_t transform00(&transform[0][0][i], std::experimental::vector_aligned);
+				simd_t transform01(&transform[0][1][i], std::experimental::vector_aligned);
+				simd_t transform02(&transform[0][2][i], std::experimental::vector_aligned);
+				simd_t transform03(&transform[0][3][i], std::experimental::vector_aligned);
+				simd_t transform10(&transform[1][0][i], std::experimental::vector_aligned);
+				simd_t transform11(&transform[1][1][i], std::experimental::vector_aligned);
+				simd_t transform12(&transform[1][2][i], std::experimental::vector_aligned);
+				simd_t transform13(&transform[1][3][i], std::experimental::vector_aligned);
+				simd_t transform20(&transform[2][0][i], std::experimental::vector_aligned);
+				simd_t transform21(&transform[2][1][i], std::experimental::vector_aligned);
+				simd_t transform22(&transform[2][2][i], std::experimental::vector_aligned);
+				simd_t transform23(&transform[2][3][i], std::experimental::vector_aligned);
 				// Transform ligand atom
-				lpos_x[i] = transform[0][3][i]
-						+ l_atom.x * transform[0][0][i]
-						+ l_atom.y * transform[0][1][i]
-						+ l_atom.z * transform[0][2][i];
-				lpos_y[i] = transform[1][3][i]
-						+ l_atom.x * transform[1][0][i]
-						+ l_atom.y * transform[1][1][i]
-						+ l_atom.z * transform[1][2][i];
-				lpos_z[i] = transform[2][3][i]
-						+ l_atom.x * transform[2][0][i]
-						+ l_atom.y * transform[2][1][i]
-						+ l_atom.z * transform[2][2][i];
+				simd_t lpos_xi = transform03
+						+ l_atom.x * transform00
+						+ l_atom.y * transform01
+						+ l_atom.z * transform02;
+				simd_t lpos_yi = transform13
+						+ l_atom.x * transform10
+						+ l_atom.y * transform11
+						+ l_atom.z * transform12;
+				simd_t lpos_zi = transform23
+						+ l_atom.x * transform20
+						+ l_atom.y * transform21
+						+ l_atom.z * transform22;
+
+				lpos_xi.copy_to(&lpos_x[i], std::experimental::vector_aligned);
+				lpos_yi.copy_to(&lpos_y[i], std::experimental::vector_aligned);
+				lpos_zi.copy_to(&lpos_z[i], std::experimental::vector_aligned);
 			}
 
 			// Loop over protein atoms
@@ -190,61 +181,38 @@ void fasten_main(
 				const float chrg_init = l_params.elsc * p_params.elsc;
 				const float dslv_init = p_hphb + l_hphb;
 
-				auto begin_ = hpx::util::make_zip_iterator(lpos_x, lpos_y, lpos_z, etot);
-				auto end_ = hpx::util::make_zip_iterator(
-					lpos_x + WG_SIZE, lpos_y + WG_SIZE,
-					lpos_z + WG_SIZE, etot + WG_SIZE);
-
-				// for (size_t i = 0; i < WG_SIZE; i += simd_t::size()) {
-				hpx::for_each(hpx::execution::simd, begin_, end_, [&](auto&& t) {
-
-				using Vector = std::decay_t<decltype(hpx::get<0>(t))>;
-                using Mask = get_mask_type<Vector>::type;
-					Vector &lpos_xi = hpx::get<0>(t);
-					Vector &lpos_yi = hpx::get<1>(t);
-					Vector &lpos_zi = hpx::get<2>(t);
-					Vector &etot_input = hpx::get<3>(t);
-					// std::cout << "Vec size : " << sizeof(Vector) << std::endl;
-
-					Vector etot_i = etot_input;
+				for (size_t i = 0; i < WG_SIZE; i += simd_t::size()) {
 					// Calculate distance between atoms
-					const Vector x = lpos_xi - p_atom.x;
-					const Vector y = lpos_yi - p_atom.y;
-					const Vector z = lpos_zi - p_atom.z;
-		
+					const simd_t x = simd_t(&lpos_x[i], std::experimental::vector_aligned) - p_atom.x;
+					const simd_t y = simd_t(&lpos_y[i], std::experimental::vector_aligned) - p_atom.y;
+					const simd_t z = simd_t(&lpos_z[i], std::experimental::vector_aligned) - p_atom.z;
 					using std::experimental::sqrt;
-					using std::sqrt;
-					const Vector distij = sqrt(x * x + y * y + z * z);
+
+					const simd_t distij = sqrt(x * x + y * y + z * z);
 
 					// Calculate the sum of the sphere radii
-					const Vector distbb = distij - radij;
-					const Mask zone1 = (distbb < ZERO);
+					const simd_t distbb = distij - radij;
+					const simd_mask_t zone1 = (distbb < ZERO);
 
-					// simd_t etot_i(&etot[i], std::experimental::vector_aligned);
+					simd_t etot_i(&etot[i], std::experimental::vector_aligned);
 					// Calculate steric energy
 					// etot[i] += (ONE - (distij * r_radij)) * (zone1 ? 2 * HARDNESS : ZERO);
-					etot_i += (ONE - (distij * r_radij)) * select(zone1, 2 * HARDNESS, ZERO);
+					etot_i += (ONE - (distij * r_radij)) * select_simd(zone1, 2 * HARDNESS, ZERO);
 
 					// Calculate formal and dipole charge interactions
 					// float chrg_e = chrg_init * ((zone1 ? 1 : (ONE - distbb * elcdst1)) * (distbb < elcdst ? 1 : ZERO));
-					Vector chrg_e = chrg_init * (select(zone1, 1, (ONE - distbb * elcdst1)) * select(distbb < elcdst, 1, ZERO));
-
-					using std::experimental::abs;
-					using std::abs;
-					const Vector neg_chrg_e = -abs(chrg_e);
-
+					simd_t chrg_e = chrg_init * (select_simd(zone1, 1, (ONE - distbb * elcdst1)) * select_simd(distbb < elcdst, 1, ZERO));
+					const simd_t neg_chrg_e = -std::experimental::abs(chrg_e);
 					chrg_e = type_E ? neg_chrg_e : chrg_e;
 					etot_i += chrg_e * CNSTNT;
 
 					// Calculate the two cases for Nonpolar-Polar repulsive interactions
-					const Vector coeff = (ONE - (distbb * r_distdslv));
-					Vector dslv_e = dslv_init * (select((distbb < distdslv && Mask(phphb_nz)), 1, ZERO));
-					dslv_e *= select(zone1, 1, coeff);
+					const simd_t coeff = (ONE - (distbb * r_distdslv));
+					simd_t dslv_e = dslv_init * (select_simd((distbb < distdslv && simd_mask_t(phphb_nz)), 1, ZERO));
+					dslv_e *= select_simd(zone1, 1, coeff);
 					etot_i += dslv_e;
-					// std::cout << typeid(etot_input).name() << std::endl;exit(-1);
-					etot_input = etot_i;
-					// etot_i.copy_to(&etot[i], std::experimental::vector_aligned);
-				});
+					etot_i.copy_to(&etot[i], std::experimental::vector_aligned);
+				}
 			} while (++ip < natpro); // loop over protein atoms
 		} while (++il < natlig); // loop over ligand atoms
 

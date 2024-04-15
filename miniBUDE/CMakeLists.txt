@@ -33,6 +33,8 @@ add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
 set(target "hpx_fj_simd")
 add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
 
+set(target "hpx_fj_std_simd")
+add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
 
 set(target "hpx_static_cs")
 add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
@@ -40,21 +42,21 @@ add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
 set(target "hpx_simd")
 add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
 
-message("*** HPXMP PATH : " ${HPXMP_PATH})
-message("*** HPXC_INCLUDE_PATH : " ${HPXC_INCLUDE_PATH})
-add_definitions(-DHPXC)
-find_library(HPXMP libomp.so
-  PATHS ${HPXMP_PATH}
-  NO_DEFAULT_PATH
-)
+# message("*** HPXMP PATH : " ${HPXMP_PATH})
+# message("*** HPXC_INCLUDE_PATH : " ${HPXC_INCLUDE_PATH})
+# add_definitions(-DHPXC)
+# find_library(HPXMP libomp.so
+#   PATHS ${HPXMP_PATH}
+#   NO_DEFAULT_PATH
+# )
 
-message("*** HPXMP : " ${HPXMP})
-add_executable(hpxmp hpxmp.cpp)
-target_link_libraries(hpxmp ${HPXMP} pthread HPX::hpx HPX::wrap_main m)
-target_include_directories(hpxmp PUBLIC ${HPXC_INCLUDE_PATH})
-target_compile_options(hpxmp PUBLIC -fopenmp)
+# message("*** HPXMP : " ${HPXMP})
+# add_executable(hpxmp hpxmp.cpp)
+# target_link_libraries(hpxmp ${HPXMP} pthread HPX::hpx HPX::wrap_main m)
+# target_include_directories(hpxmp PUBLIC ${HPXC_INCLUDE_PATH})
+# target_compile_options(hpxmp PUBLIC -fopenmp)
 
-add_executable(hpxmp_simd hpxmp_simd.cpp)
-target_link_libraries(hpxmp_simd ${HPXMP} pthread HPX::hpx HPX::wrap_main m)
-target_include_directories(hpxmp_simd PUBLIC ${HPXC_INCLUDE_PATH})
-target_compile_options(hpxmp_simd PUBLIC -fopenmp)
+# add_executable(hpxmp_simd hpxmp_simd.cpp)
+# target_link_libraries(hpxmp_simd ${HPXMP} pthread HPX::hpx HPX::wrap_main m)
+# target_include_directories(hpxmp_simd PUBLIC ${HPXC_INCLUDE_PATH})
+# target_compile_options(hpxmp_simd PUBLIC -fopenmp)
