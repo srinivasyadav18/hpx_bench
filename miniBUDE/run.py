@@ -132,8 +132,10 @@ def run_bench(config):
             cmd = ''
             if bench_name == 'seq':
                 cmd = f'{bench_path} -i 1 --deck {config["deck"]} -n {config["n"]}'
-            elif bench_name == 'hpxmp' or bench_name[:3] == 'omp':
+            elif bench_name[:3] == 'omp':
                 cmd = f'OMP_NUM_THREADS={thread} {bench_path} {extra_args}'
+            elif bench_name[:5] == 'hpxmp':
+                cmd = f'OMP_NUM_THREADS={thread} {bench_path} {extra_args} --hpx:threads={thread}' 
             elif bench_name[:3] == 'hpx':
                 cmd = f'{bench_path} --hpx:threads={thread} {extra_args}'
             else:
