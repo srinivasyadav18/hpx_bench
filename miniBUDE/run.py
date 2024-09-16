@@ -138,6 +138,8 @@ def run_bench(config):
                 cmd = f'OMP_NUM_THREADS={thread} {bench_path} {extra_args} --hpx:threads={thread}' 
             elif bench_name[:3] == 'hpx':
                 cmd = f'{bench_path} --hpx:threads={thread} {extra_args}'
+            elif bench_name == 'tbb_bench':
+                cmd = f'{bench_path} --threads {thread} {extra_args}'
             else:
                 print(f'No idea how to run {bench_name}')
                 exit()

@@ -23,6 +23,12 @@ add_executable(${target} ${target}.cpp)
 target_compile_options(${target} PUBLIC "-fopenmp")
 target_link_options(${target} PUBLIC "-fopenmp")
 
+list(APPEND CMAKE_MODULE_PATH "/home/srinivasyadav/Documents/work/thesis/tbb_install/lib/cmake")
+
+find_package(TBB REQUIRED)
+set(target "tbb_bench")
+add_executable(${target} ${target}.cpp)
+target_link_libraries(${target} PUBLIC tbb)
 
 set(target "hpx")
 add_hpx_executable(${target} ESSENTIAL SOURCES ${target}.cpp)
